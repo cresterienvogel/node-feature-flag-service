@@ -1,0 +1,96 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Environment {
+  dev
+  staging
+  prod
+}
+
+enum RuleType {
+  global
+  percentage
+  segment
+  variant
+}
+
+model ApiKey {
+  id         String   @id @default(uuid())
+  name       String
+  prefix     String   @unique
+  keyHash    String   @unique
+  revokedAt  DateTime?
+  lastUsedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([revokedAt])
+}
+
+model Feature {
+  id           String       @id @default(uuid())
+  key          String       @unique
+  description  String?
+  environment  Environment
+  isArchived   Boolean      @default(false)
+  rulesVersion Int          @default(1)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  rules        Rule[]
+
+  @@index([environment])
+}
+
+model Rule {
+  id             String     @id @default(uuid())
+  featureId      String
+  priority       Int
+  ruleType       RuleType
+  enabled        Boolean    @default(true)
+  rolloutPercent Int?
+  variants       Json?
+  conditions     Json?
+  schedule       Json?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  feature        Feature    @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  @@index([featureId, priority])
+}
+
+model AuditEvent {
+  id            BigInt   @id @default(autoincrement())
+  actorApiKeyId String?
+  action        String
+  entityType    String
+  entityId      String
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model Evaluation {
+  id            BigInt   @id @default(autoincrement())
+  featureKey    String
+  environment   Environment
+  subjectKey    String
+  subject       Json
+  resultEnabled Boolean
+  variantKey    String?
+  matchedRuleId String?
+  reason        String
+  decisionHash  Int
+  createdAt     DateTime @default(now())
+
+  @@index([featureKey, environment])
+  @@index([subjectKey])
+  @@index([createdAt])
+}

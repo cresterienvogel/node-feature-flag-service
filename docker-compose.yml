@@ -1,0 +1,46 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: feature_flags
+    ports:
+      - "15432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "16379:6379"
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: migrate
+    environment:
+      DATABASE_URL: postgresql://app:app@db:5432/feature_flags?schema=public
+    depends_on:
+      - db
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: prod
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://app:app@db:5432/feature_flags?schema=public
+      REDIS_URL: redis://redis:6379
+      FAIL_OPEN: "false"
+      ROOT_API_KEY: change-me
+      CACHE_TTL_MIN_SECONDS: 30
+      CACHE_TTL_MAX_SECONDS: 120
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+      - redis
+      - migrate
+volumes:
+  db_data:
